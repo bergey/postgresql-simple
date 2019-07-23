@@ -188,6 +188,8 @@ type FieldParser a = Field -> Maybe ByteString -> Conversion a
 -- | A type that may be converted from a SQL type.
 class FromField a where
     fromField :: FieldParser a
+    fromFieldBinary :: Maybe (FieldParser a)
+    fromFieldBinary = Nothing
     -- ^ Convert a SQL value to a Haskell value.
     --
     -- Returns a list of exceptions if the conversion fails.  In the case of

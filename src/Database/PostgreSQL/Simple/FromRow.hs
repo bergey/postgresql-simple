@@ -109,8 +109,8 @@ getTypeInfoByCol Row{..} col =
 getTypenameByCol :: Row -> PQ.Column -> Conversion ByteString
 getTypenameByCol row col = typname <$> getTypeInfoByCol row col
 
-fieldWith :: FieldParser a -> RowParser a
-fieldWith fieldP = RP $ do
+fieldWith :: FieldParser a -> ReaderT Row (StateT PQ.Column Conversion) a
+fieldWith fieldP = do
     let unCol (PQ.Col x) = fromIntegral x :: Int
     r@Row{..} <- ask
     column <- lift get
@@ -135,7 +135,7 @@ fieldWith fieldP = RP $ do
       lift (lift (fieldP field' (getvalue result row column)))
 
 field :: FromField a => RowParser a
-field = fieldWith fromField
+field = RP (fieldWith fromField) (fieldWith <$> fromFieldBinary)
 
 ellipsis :: ByteString -> ByteString
 ellipsis bs
@@ -143,7 +143,8 @@ ellipsis bs
     | otherwise        = bs
 
 numFieldsRemaining :: RowParser Int
-numFieldsRemaining = RP $ do
+numFieldsRemaining = RP count (Just count) where
+  count = do
     Row{..} <- ask
     column <- lift get
     return $! (\(PQ.Col x) -> fromIntegral x) (nfields rowresult - column)

@@ -92,7 +92,7 @@ getRowWith :: RowParser r -> PQ.Row -> PQ.Column -> Connection -> PQ.Result -> I
 getRowWith parser row ncols conn result = do
   let rw = Row row result
   let unCol (PQ.Col x) = fromIntegral x :: Int
-  okvc <- runConversion (runStateT (runReaderT (unRP parser) rw) 0) conn
+  okvc <- runConversion (runStateT (runReaderT (bestRowParser parser) rw) 0) conn
   case okvc of
     Ok (val,col) | col == ncols -> return val
                  | otherwise -> do

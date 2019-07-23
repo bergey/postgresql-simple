@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE  CPP, BangPatterns, DoAndIfThenElse, RecordWildCards  #-}
 {-# LANGUAGE  DeriveDataTypeable, DeriveGeneric                    #-}
 {-# LANGUAGE  GeneralizedNewtypeDeriving                           #-}
@@ -453,11 +454,29 @@ data Row = Row {
    , rowresult  :: !PQ.Result
    }
 
-newtype RowParser a = RP { unRP :: ReaderT Row (StateT PQ.Column Conversion) a }
-   deriving ( Functor, Applicative, Alternative, Monad )
+data RowParser a = RP {
+    textRowParser :: ReaderT Row (StateT PQ.Column Conversion) a,
+    binaryRowParser :: Maybe (ReaderT Row (StateT PQ.Column Conversion) a)
+    }
+   deriving ( Functor)
 
-liftRowParser :: IO a -> RowParser a
-liftRowParser = RP . lift . lift . liftConversion
+-- | Binary parser if available, otherwise text parser.
+bestRowParser :: RowParser a -> ReaderT Row (StateT PQ.Column Conversion) a
+bestRowParser (RP _ (Just b)) = b
+bestRowParser (RP t _) = t
+
+instance Applicative RowParser where
+    pure a = RP (pure a) (Just (pure a))
+    RP t1 b1 <*> RP t2 b2 = RP (t1 <*> t2) (liftA2 (<*>) b1 b2)
+
+instance Alternative RowParser where
+    empty = RP empty (Just empty) -- ???
+    RP t1 b1 <|> RP t2 b2 = RP (t1 <|> t2) (liftA2 (<|>) b1 b2)
+
+-- instance Monad RowParser where
+--     RP t (Just b) >>= f = -- ???
+--     -- I'm not sure that this type can be made a monad.  Operationally, we have 2 @a@ values, and if we run `f` twice, we have 2 States.
+--     -- Semantically, we don't know whether to use the text or binary parser, because we haven't run the `f`, and don't know if it has a Just
 
 newtype Conversion a = Conversion { runConversion :: Connection -> IO (Ok a) }
 
